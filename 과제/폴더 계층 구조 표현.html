@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>폴더 계층구조</title>
+    <style>
+        ul, li {
+            list-style-type: none;
+        }
+        ul {
+            margin-left: 20px;
+        }
+    </style>
+</head>
+<body>
+    <input type="file" webkitdirectory directory multiple onchange="handleFiles(this.files)">
+    <ul id="fileTree"></ul>
+
+    <script>
+        function handleFiles(files) {
+            const fileTree = document.getElementById('fileTree');
+            fileTree.innerHTML = '';
+
+            const fileMap = {};
+            for (const file of files) {
+                const pathParts = file.webkitRelativePath.split('/');
+                let currentLevel = fileMap;
+
+                for (let i = 0; i < pathParts.length; i++) {
+                    const part = pathParts[i];
+                    if (!currentLevel[part]) {
+                        currentLevel[part] = i === pathParts.length - 1 ? file.name : {};
+                    }
+                    currentLevel = currentLevel[part];
+                }
+            }
+
+            function buildTree(element, node, depth = 0) {
+                for (const key in node) {
+                    const li = document.createElement('li');
+                    li.textContent = `${'-'.repeat(depth)} ${key}`;
+                    element.appendChild(li);
+
+                    if (typeof node[key] === 'object') {
+                        const ul = document.createElement('ul');
+                        li.appendChild(ul);
+                        buildTree(ul, node[key], depth + 1);
+                    }
+                }
+            }
+
+            buildTree(fileTree, fileMap);
+        }
+    </script>
+</body>
+</html>

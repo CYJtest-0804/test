@@ -1,0 +1,702 @@
+성적 보기, 입력, 수정 구현 과제
+
+
+student.xml 쿼리작성
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+	// 과목검색
+	<select id="selectStudentSubjects" resultType="egovMap">
+	  	SELECT subject_name, subject_id
+		FROM saa_student_subject_information
+		WHERE student_grade = #{studentGrade}
+	</select>
+
+	// 연도, 학기, 구분을 검색하고 추후 수정과 입력에 사용하기위해 학생ID와 학생학년도 같이 검색
+	<select id="selectStudentScore" resultType="egovMap">
+		SELECT sc.student_id, sc.score_year, sc.semester, sc.score_division, sb.student_grade
+		FROM saa_student_scores_information sc, saa_student_subject_information sb
+		WHERE sc.subject_id = sb.subject_id
+			  AND sc.student_id = #{studentId}
+			  AND sb.student_grade = #{studentGrade}
+		GROUP BY sc.score_year, sc.semester, sc.score_division
+		ORDER BY sc.score_year, sc.semester, sc.score_division desc;
+	</select>
+
+	// 학생 점수 검색
+	<select id="selectStudentScores" resultType="egovMap">
+	        SELECT sc.student_id, sc.scores, sb.student_grade
+		FROM saa_student_scores_information sc, saa_student_subject_information sb
+		WHERE sc.subject_id = sb.subject_id
+			AND sc.student_id = #{studentId}
+			AND sb.student_grade = #{studentGrade}
+		ORDER BY sc.semester ASC, sc.score_division DESC
+	</select>
+
+	// 점수입력하기
+	<insert id="insertScore" parameterType="EgovMap">
+        	INSERT INTO saa_student_scores_information
+        	(scores_id, student_id, score_year, semester, score_division, subject_id, scores)
+	        VALUES
+        	(#{scoresId}, #{studentId}, #{scoreYear}, #{semester}, #{scoreDivision}, #{subjectId}, #{scores})
+    	</insert>
+
+	// 점수입력시 편의성을 위해 성적ID 자동입력 구현 쿼리
+	<select id = "maxScoreId" resultType="egovMap">
+		SELECT SUBSTRING(max(scores_id), 1, 4) || TO_NUMBER(SUBSTRING(max(scores_id), 5, 4)) + 1 AS score_id
+		FROM saa_student_scores_information;
+	</select>
+
+	// 점수수정시 기존정보 출력
+	<select id = "selectEditScore" resultType="egovMap">
+		SELECT sc.scores_id, su.subject_name, sc.scores
+		FROM saa_student_scores_information sc, saa_student_subject_information su
+		WHERE sc.subject_id = su.subject_id
+			AND sc.score_year = #{scoreYear}
+			AND sc.semester = #{semester}
+			AND sc.score_division = #{scoreDivision}
+			AND student_id = #{studentId}
+	</select>
+
+	// 점수수정하기
+	<update id="updateScore" parameterType="egovMap">
+	    UPDATE saa_student_scores_information
+	    SET scores = #{scores}
+	    WHERE scores_id = #{scoresId}
+	      AND student_id = #{studentId}
+	      AND score_year = #{scoreYear}
+	      AND semester = #{semester}
+	      AND score_division = #{scoreDivision}
+	</update>
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+StudentMapper.java // 매퍼 추가 등록
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+	List<EgovMap> selectStudentScore(EgovMap paramMap) throws SQLException;
+	List<EgovMap> selectStudentScores(EgovMap paramMap) throws SQLException;
+	List<EgovMap> selectStudentSubjects(EgovMap paramMap) throws SQLException;
+	List<EgovMap> selectEditScore(EgovMap paramMap) throws SQLException;
+	EgovMap maxScoreId(EgovMap paramMap) throws SQLException;
+	void updateScore(EgovMap paramMap) throws SQLException;
+	void insertScore(EgovMap paramMap) throws SQLException;
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+StudentService.java // 서비스 추가 등록
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+	List<EgovMap> selectStudentScore(EgovMap paramMap) throws SQLException;
+	List<EgovMap> selectStudentScores(EgovMap paramMap) throws SQLException;
+	List<EgovMap> selectStudentSubjects(EgovMap paramMap) throws SQLException;
+	List<EgovMap> selectEditScore(EgovMap paramMap) throws SQLException;
+	EgovMap maxScoreId(EgovMap paramMap) throws SQLException;
+	void updateScore(EgovMap paramMap) throws SQLException;
+	void insertScore(EgovMap paramMap) throws SQLException;
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+StduentServiceImpl.java // 서비스임플 추가 등록
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+    public List<EgovMap> selectStudentSubjects(EgovMap paramMap) throws DataAccessException, SQLException {
+        return studentMapper.selectStudentSubjects(paramMap);
+    }
+    public List<EgovMap> selectStudentScore(EgovMap paramMap) throws DataAccessException, SQLException {
+        return studentMapper.selectStudentScore(paramMap);
+    }
+    public List<EgovMap> selectStudentScores(EgovMap paramMap) throws DataAccessException, SQLException {
+        return studentMapper.selectStudentScores(paramMap);
+    }
+    public List<EgovMap> selectStudentScores(EgovMap paramMap) throws DataAccessException, SQLException {
+        return studentMapper.selectStudentScores(paramMap);
+    }
+    public List<EgovMap> selectEditScore(EgovMap paramMap) throws DataAccessException, SQLException {
+        return studentMapper.selectEditScore(paramMap);
+    }
+    public void insertScore(EgovMap egovMap) throws DataAccessException, SQLException {
+        studentMapper.insertScore(egovMap);
+    }
+    public EgovMap maxScoreId(EgovMap paramMap) throws DataAccessException, SQLException {
+        return studentMapper.maxScoreId(paramMap);
+    }
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+StudentController.java // 실질 처리 작성
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+	@RequestMapping(value = "/student/student_score.do")
+	public String selectStudentScore(ModelMap model, HttpServletRequest request) throws DataAccessException, RuntimeException, IOException, SQLException {
+	    LOGGER.info("학생 점수 보기");
+
+	    String studentId = request.getParameter("student_id");
+	    String studentGrade = request.getParameter("student_grade");
+
+	    EgovMap egovMap = new EgovMap();
+	    egovMap.put("studentId", studentId);
+	    egovMap.put("studentGrade", studentGrade);
+	    LOGGER.info("학생번호 ::: " + studentId);
+	    LOGGER.info("학년 ::: " + studentGrade);
+
+	    List<EgovMap> studentScore = studentService.selectStudentScore(egovMap);
+	    List<EgovMap> studentScores = studentService.selectStudentScores(egovMap);
+	    List<EgovMap> studentSubjects = studentService.selectStudentSubjects(egovMap);
+
+	    LOGGER.info("studentSubjects ::: " + studentSubjects);
+
+	    model.addAttribute("studentScore", studentScore);
+	    model.addAttribute("studentScores", studentScores);
+	    model.addAttribute("studentSubjects", studentSubjects);
+	    model.addAttribute("studentGrade", studentGrade);
+
+	    return "saa/student/student_score";
+	}
+
+	@RequestMapping(value = "/student/student_score_input.do")
+	public String inputScore(ModelMap model, HttpServletRequest request) throws DataAccessException, RuntimeException, IOException, SQLException {
+	    LOGGER.info("학생 성적 등록 페이지");
+
+	    String studentId = request.getParameter("student_id");
+	    String semester = request.getParameter("semester");
+	    String scoreDivision = request.getParameter("scoreDivision");
+	    String studentGrade = request.getParameter("student_grade");
+
+	    EgovMap egovMap = new EgovMap();
+	    egovMap.put("studentGrade", studentGrade);
+
+	    // 값들을 ModelMap에 추가
+	    model.addAttribute("studentId", studentId);
+	    model.addAttribute("semester", semester);
+	    model.addAttribute("scoreDivision", scoreDivision);
+	    model.addAttribute("studentGrade", studentGrade);
+
+	    List<EgovMap> student = studentService.selectStudentSubjects(egovMap);
+	    EgovMap score = studentService.maxScoreId(egovMap);
+	    model.addAttribute("student", student);
+	    model.addAttribute("score", score);
+
+	    LOGGER.info("성적번호 ::: " + score);
+	    LOGGER.info("학생번호 ::: " + studentId);
+	    LOGGER.info("학생학년 ::: " + studentGrade);
+	    LOGGER.info("학기 ::: " + "#");
+	    LOGGER.info("구분 ::: " + "#");
+
+	    return "saa/student/student_score_input";
+	}
+
+	@RequestMapping(value = "/student/student_score_input_proc.do")
+	public String insertScore(ModelMap model, HttpServletRequest request) throws DataAccessException, RuntimeException, IOException, SQLException {
+	    LOGGER.info("학생 성적 등록 처리");
+
+	    // 학생 ID 및 성적 정보를 요청에서 추출
+	    String studentId = request.getParameter("student_id");
+	    String scoreYear = request.getParameter("score_year");
+	    String semester = request.getParameter("semester");
+	    String scoreDivision = request.getParameter("score_division");
+
+	    String scoresId = request.getParameter("scores_id"); // 성적 번호
+        String subjectId = request.getParameter("subject_id"); // 과목 ID
+
+	    Map<String, String[]> parameterMap = request.getParameterMap();
+	    for (Map.Entry<String, String[]> entry : parameterMap.entrySet()) {
+	        if (entry.getKey().equals("scores")) {
+	            String[] scoresArray = entry.getValue();
+	            for (String score : scoresArray) {
+	                // scoresId는 쿼리에서 필요한 경우에 따라 지정해 주어야 함
+	            	LOGGER.info("성적번호 ::: " + scoresId);
+	            	LOGGER.info("과목번호 ::: " + subjectId);
+	                LOGGER.info("점수 ::: " + score);
+	                EgovMap egovMap = new EgovMap();
+	                egovMap.put("scoresId", scoresId);
+	                egovMap.put("studentId", studentId);
+	                egovMap.put("scoreYear", scoreYear);
+	                egovMap.put("semester", semester);
+	                egovMap.put("scoreDivision", scoreDivision);
+	                egovMap.put("subjectId", subjectId);
+	                egovMap.put("scores", score);
+
+	                // 성적 등록
+	                studentService.insertScore(egovMap);
+
+	                // scoresId와 subjectId 증가
+	                scoresId = incrementScoresId(scoresId);  // 성적 번호 증가
+	                subjectId = incrementSubjectId(subjectId); // 과목 번호 증가
+
+	            }
+	        }
+	    }
+	    return "saa/student/student_score_input";
+	}
+
+	// 성적 번호를 증가시키는 메소드
+	private String incrementScoresId(String currentId) {
+	    String numericPart = currentId.substring(2); // "SC00222"에서 "00222" 부분 추출
+	    int idNumber = Integer.parseInt(numericPart) + 1; // 숫자 증가
+	    return currentId.substring(0, 2) + String.format("%05d", idNumber); // 앞부분을 유지하고 0으로 채운 숫자 부분 반환
+	}
+
+	// 과목 번호를 증가시키는 메소드
+	private String incrementSubjectId(String currentId) {
+	    String numericPart = currentId.substring(2); // "SB301"에서 "301" 부분 추출
+	    int idNumber = Integer.parseInt(numericPart) + 1; // 숫자 증가
+	    return currentId.substring(0, 2) + idNumber; // 앞부분을 유지하고 숫자 부분 반환
+	}
+
+	@RequestMapping(value = "/student/student_score_edit.do")
+	public String editScore(ModelMap model, HttpServletRequest request) throws DataAccessException, RuntimeException, IOException, SQLException {
+	    LOGGER.info("학생 성적 수정 페이지");
+
+	    String studentId = request.getParameter("student_id");
+	    String scoreYear = request.getParameter("scoreYear");
+	    String semester = request.getParameter("semester");
+	    String scoreDivision = request.getParameter("scoreDivision");
+
+	    EgovMap egovMap = new EgovMap();
+	    egovMap.put("studentId", studentId);
+	    egovMap.put("scoreYear", scoreYear);
+	    egovMap.put("semester", semester);
+	    egovMap.put("scoreDivision", scoreDivision);
+	    LOGGER.info("학생번호 ::: " + studentId);
+	    LOGGER.info("연도 ::: " + scoreYear);
+	    LOGGER.info("학기 ::: " + semester);
+	    LOGGER.info("구분 ::: " + scoreDivision);
+
+	    List<EgovMap> student = studentService.selectEditScore(egovMap);
+	    model.addAttribute("student", student);
+
+	    return "saa/student/student_score_edit"; 
+	}
+
+	@RequestMapping(value = "/student/student_score_edit_proc.do")
+	public String updateScore(HttpServletRequest request) throws DataAccessException, RuntimeException, IOException, SQLException {
+	    LOGGER.info("학생 성적수정 처리");
+
+	    String studentId = request.getParameter("student_id");
+	    String scoreYear = request.getParameter("scoreYear");
+	    String semester = request.getParameter("semester");
+	    String scoreDivision = request.getParameter("scoreDivision");
+
+	    Map<String, String[]> parameterMap = request.getParameterMap();
+	    for (Map.Entry<String, String[]> entry : parameterMap.entrySet()) {
+	        if (entry.getKey().startsWith("scores[")) {
+	            // scoresId 추출
+	            String scoresId = entry.getKey().substring(7, entry.getKey().length() - 1);
+	            String scoreValue = entry.getValue()[0];
+
+	            // null이 아닌지 체크
+	            if (scoresId != null && !scoresId.isEmpty() && scoreValue != null) {
+	                EgovMap egovMap = new EgovMap();
+	                egovMap.put("studentId", studentId);
+	                egovMap.put("scoreYear", scoreYear);
+	                egovMap.put("semester", semester);
+	                egovMap.put("scoreDivision", scoreDivision);
+	                egovMap.put("scoresId", scoresId);  // 올바른 scoresId 값 설정
+	                egovMap.put("scores", scoreValue);
+
+	                studentService.updateScore(egovMap);
+	            } else {
+	                LOGGER.warn("scoresId 또는 scoreValue가 비어 있습니다.");
+	            }
+	        }
+	    }
+	    return "saa/student/student_score_edit";
+	}
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+student_view.jsp에 버튼추가
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+<button type="button" onclick="location.href='student_score.do?student_id=${student.studentId}&student_grade=${student.studentGrade}';">점수보기</button> // 점수페이지로 이동 (검색에 용이하기 위해 학생ID와 학년정보를 같이 넘겨줌)
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+student_score.jsp // 신규작성
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+<%@ page language="java" contentType="text/html; charset=UTF-8" pageEncoding="UTF-8"%>
+<%@ taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core" %>
+<%@ taglib prefix="fmt" uri="http://java.sun.com/jsp/jstl/fmt" %>
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>학생 점수</title>
+    <link href='/css/style.css' rel='stylesheet'>
+    <script>
+        function openEditPopup(studentId, scoreYear, semester, scoreDivision) {
+            var popupUrl = 'student_score_edit.do?student_id=' + studentId +
+                           '&scoreYear=' + scoreYear +
+                           '&semester=' + semester +
+                           '&scoreDivision=' + scoreDivision;
+            var popupOptions = "width=700,height=600,scrollbars=yes,resizable=yes";
+            window.open(popupUrl, "Edit Score", popupOptions);
+        }
+        function openInsertPopup(studentId, studentGrade) {
+            var popupUrl = 'student_score_input.do?student_id=' + studentId +
+                           '&student_grade=' + studentGrade;
+            var popupOptions = "width=700,height=700,scrollbars=yes,resizable=yes";
+            window.open(popupUrl, "Insert Score", popupOptions);
+        }
+        function filterByGrade() {
+            var studentId = document.getElementById('studentId').value;
+            var selectedGrade = document.getElementById('gradeSelect').value;
+            window.location.href = 'student_score.do?student_id=' + studentId + '&student_grade=' + selectedGrade;
+        }
+    </script>
+</head>
+<body>
+    <h2>학생 점수</h2>
+
+    <input type="hidden" id="studentId" value="${param.student_id}" />
+
+    <div class="grade-selector">
+        <label for="gradeSelect">학년 선택:</label>
+        <select id="gradeSelect" onchange="filterByGrade()">
+            <option value="1" <c:if test="${param.student_grade == '1'}">selected</c:if>>1학년</option>
+            <option value="2" <c:if test="${param.student_grade == '2'}">selected</c:if>>2학년</option>
+            <option value="3" <c:if test="${param.student_grade == '3'}">selected</c:if>>3학년</option>
+        </select>
+    </div>
+
+    <table class="dataTable">
+        <thead>
+            <tr>
+                <th>연도</th>
+                <th>학기</th>
+                <th>구분</th>
+                <c:forEach var="subject" items="${studentSubjects}">
+                    <th><c:out value="${subject.subjectName}" /></th>
+                </c:forEach>
+                <th>총점</th>
+                <th>평균</th>
+                <th>관리</th>
+            </tr>
+        </thead>
+        <tbody>
+            <c:choose>
+                <c:when test="${not empty studentScore}">
+                    <!-- 점수 데이터가 있을 때 -->
+                    <c:forEach var="score" items="${studentScore}" varStatus="rowStatus">
+                        <tr>
+                            <td><c:out value="${score.scoreYear}" /></td>
+                            <td><c:out value="${score.semester}" /></td>
+                            <td><c:out value="${score.scoreDivision}" /></td>
+
+                            <c:set var="studentGrade" value="${param.student_grade}" />
+                            <c:set var="scoreCount" value="${studentGrade == '2' ? 6 : (studentGrade == '3' ? 7 : 5)}" />
+                            <c:set var="total" value="0" />
+
+                            <c:forEach var="scores" begin="${rowStatus.index * scoreCount}" end="${(rowStatus.index + 1) * scoreCount - 1}" items="${studentScores}">
+                                <td><c:out value="${scores.scores}" /></td>
+                                <c:set var="total" value="${total + scores.scores}" />
+                            </c:forEach>
+
+                            <td><c:out value="${total}" /></td>
+                            <td><fmt:formatNumber value="${total / scoreCount}" maxFractionDigits="1" /></td>
+                            <td>
+                                <button type="button" onclick="openEditPopup('${score.studentId}', '${score.scoreYear}', '${score.semester}', '${score.scoreDivision}');">수정하기</button>
+                            </td>
+                        </tr>
+                    </c:forEach>
+                    <!-- 기본 행으로 나머지 채우기 -->
+                    <c:forEach var="defaultRow" begin="${studentScore.size() + 1}" end="4">
+                        <tr>
+                            <td>${param.scoreYear}</td>
+                            <td><c:choose>
+                                <c:when test="${defaultRow == 1 || defaultRow == 2}">1</c:when>
+                                <c:otherwise>2</c:otherwise>
+                            </c:choose></td>
+                            <td><c:choose>
+                                <c:when test="${defaultRow % 2 == 1}">M</c:when>
+                                <c:otherwise>F</c:otherwise>
+                            </c:choose></td>
+                            <c:forEach var="subject" items="${studentSubjects}">
+                                <td>--</td>
+                            </c:forEach>
+                            <td>--</td>
+                            <td>--</td>
+                            <td>
+                                <button type="button" onclick="openInsertPopup('${param.student_id}','${param.student_grade}');">
+                                    입력하기
+                                </button>
+                            </td>
+                        </tr>
+                    </c:forEach>
+                </c:when>
+                <c:otherwise>
+                    <!-- 점수 데이터가 없을 때 기본 행 출력 -->
+                    <c:forEach var="defaultRow" begin="1" end="4">
+                        <tr>
+                            <td>${param.scoreYear}</td>
+                            <td><c:choose>
+                                <c:when test="${defaultRow == 1 || defaultRow == 2}">1</c:when>
+                                <c:otherwise>2</c:otherwise>
+                            </c:choose></td>
+                            <td><c:choose>
+                                <c:when test="${defaultRow % 2 == 1}">M</c:when>
+                                <c:otherwise>F</c:otherwise>
+                            </c:choose></td>
+                            <c:forEach var="subject" items="${studentSubjects}">
+                                <td>--</td>
+                            </c:forEach>
+                            <td>--</td>
+                            <td>--</td>
+                            <td>
+                                <button type="button" onclick="openInsertPopup('${param.student_id}','${param.student_grade}');">
+                                    입력하기
+                                </button>
+                            </td>
+                        </tr>
+                    </c:forEach>
+                </c:otherwise>
+            </c:choose>
+        </tbody>
+    </table>
+    <div class="button-container">
+        <button type="button" onclick="location.href='student_list.do';">목록</button>
+    </div>
+</body>
+</html>
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+student_score_input.jsp // 신규작성
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+<%@ page language="java" contentType="text/html; charset=UTF-8" pageEncoding="UTF-8"%>
+<%@ taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core" %>
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>학생 성적 등록</title>
+    <script src="https://code.jquery.com/jquery-latest.min.js"></script>
+    <link href='/css/style.css' rel='stylesheet'>
+    <script>
+        function validateForm() {
+            var scoresId = document.forms["studentFrm"]["scores_id"].value;
+            var scoreYear = document.forms["studentFrm"]["score_year"].value;
+            var semester = document.forms["studentFrm"]["semester"].value;
+            var scoreDivision = document.forms["studentFrm"]["score_division"].value;
+            var scores = document.forms["studentFrm"].querySelectorAll('input[name="scores"]');
+
+            if (!scoresId) {
+                alert("성적번호를 입력해주세요.");
+                return false;
+            }
+            if (!scoreYear || isNaN(scoreYear) || scoreYear < 0) {
+                alert("유효한 연도를 입력해주세요.");
+                return false;
+            }
+            if (!semester || isNaN(semester) || semester < 1 || semester > 2) {
+                alert("학기는 1 또는 2로 입력해주세요.");
+                return false;
+            }
+            if (scoreDivision !== 'M' && scoreDivision !== 'F') {
+                alert("구분은 'M' 또는 'F'여야 합니다.");
+                return false;
+            }
+            for (var i = 0; i < scores.length; i++) {
+                if (!scores[i].value || isNaN(scores[i].value) || scores[i].value < 0 || scores[i].value > 100) {
+                    alert("모든 성적은 0에서 100 사이의 값을 입력해주세요.");
+                    return false;
+                }
+            }
+            return true; // 모든 검사를 통과하면 true 반환
+        }
+        function fn_insertScores() {
+	        var formData = $("#studentFrm").serialize();
+
+	        $.ajax({
+	            url: "student_score_input_proc.do",
+	            type: "POST",
+	            data: formData,
+	            success: function(response) {
+	            	alert("성적이 추가되었습니다.");
+	                opener.location.reload();
+	                window.close();
+	            },
+	            error: function(xhr, status, error) {
+	                alert("성적 입력에 실패했습니다. 다시 시도해 주세요.");
+	                console.error("Error:", error);
+	            }
+	        });
+	    }
+    </script>
+</head>
+<body>
+    <div>
+        <h2>학생 성적 등록</h2>
+        <form name="studentFrm" id="studentFrm" method="post" action="/student/student_score_input_proc.do">
+        	<input type="hidden" name="student_id" value="${param.student_id}" />
+        	<input type="hidden" name="scores_id" value="${score.scoreId}" />
+            <table class="dataTable">
+                <tr>
+                    <th>성적번호</th>
+                    <td>${score.scoreId}</td>
+                </tr>
+                <tr>
+                    <th>학생번호</th>
+                    <td>${studentId}</td>
+                </tr>
+                <tr>
+                    <th>연도</th>
+                    <td><input type='text' name='score_year' required /></td>
+                </tr>
+                <tr>
+                    <th>학기</th>
+                    <td><input type="text" name="semester" required /></td>
+                </tr>
+                <tr>
+                    <th>구분</th>
+                    <td><input type="text" name="score_division" required /></td>
+                </tr>
+                <c:forEach var="student" items="${student}">
+                	<input type="hidden" name="subject_id" value="${student.subjectId}" />
+                    <tr>
+                        <th><c:out value="${student.subjectName}" /></th>
+                        <td>
+                        	<c:out value="${student.subjectId}" />
+                        	<input type="hidden" name="subject_id" value="${student.subjectId}" />
+                            <input type="number" name="scores" min="0" max="100" required />
+                        </td>
+                    </tr>
+                </c:forEach>
+            </table>
+        </form>
+    </div>
+    <p>
+    <div class="button-container">
+        <button type="button" onclick="fn_insertScores();">등록</button>
+        <button type="button" onclick="window.close();">취소</button>
+    </div>
+</body>
+</html>
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+student_score_edit.jsp // 신규작성
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+<%@ page language="java" contentType="text/html; charset=UTF-8" pageEncoding="UTF-8"%>
+<%@ taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core" %>
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>학생 성적 수정</title>
+    <link href="/css/style.css" rel="stylesheet">
+    <script src="https://code.jquery.com/jquery-latest.min.js"></script>
+    <script>
+	    function fn_updateScores() {
+	        var form = document.scoreForm;
+	        var isValid = true;
+
+	        $("input[name^='scores']").each(function() {
+	            var scoreValue = $(this).val();
+
+	            // 빈 값인지 확인
+	            if (scoreValue === "") {
+	                alert("모든 점수를 입력하세요.");
+	                $(this).focus();
+	                isValid = false;
+	                return false;
+	            }
+
+	            // 숫자 범위 확인 (0~100)
+	            var numericValue = parseFloat(scoreValue);
+	            if (numericValue < 0 || numericValue > 100) {
+	                alert("점수는 0에서 100 사이의 값이어야 합니다.");
+	                $(this).focus();
+	                isValid = false;
+	                return false;
+	            }
+	        });
+	    }
+
+	    function fn_updateScores() {
+	        var formData = $("#scoreForm").serialize();
+
+	        $.ajax({
+	            url: "student_score_edit_proc.do",
+	            type: "POST",
+	            data: formData,
+	            success: function(response) {
+	            	alert("성적이 저장되었습니다.");
+	                opener.location.reload();
+	                window.close();
+	            },
+	            error: function(xhr, status, error) {
+	                alert("성적 업데이트에 실패했습니다. 다시 시도해 주세요.");
+	                console.error("Error:", error);
+	            }
+	        });
+	    }
+	</script>
+</head>
+<body>
+    <h2>학생 성적 수정</h2>
+
+    <form name="scoreForm" id="scoreForm" method="post" action="student_score_edit_proc.do">
+	    <input type="hidden" name="student_id" value="${param.student_id}" />
+	    <input type="hidden" name="scoreYear" value="${param.scoreYear}" />
+	    <input type="hidden" name="semester" value="${param.semester}" />
+	    <input type="hidden" name="scoreDivision" value="${param.scoreDivision}" />
+
+	    <table class="dataTable">
+	        <thead>
+	            <tr>
+	                <th>성적ID</th>
+	                <th>과목</th>
+	                <th>성적</th>
+	            </tr>
+	        </thead>
+	        <tbody>
+	            <c:forEach var="student" items="${student}">
+	                <tr>
+	                    <td><c:out value="${student.scoresId}" /></td>
+	                    <td><c:out value="${student.subjectName}" /></td>
+	                    <td>
+	                        <input type="number" name="scores[${student.scoresId}]" value="${student.scores}" min="0" max="100" required />
+	                    </td>
+	                </tr>
+	            </c:forEach>
+	        </tbody>
+	    </table>
+
+	    <div class="button-container">
+	        <button type="button" onclick="fn_updateScores()">저장</button>
+	        <button type="button" onclick="window.close();">취소</button>
+	    </div>
+	</form>
+</body>
+</html>
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

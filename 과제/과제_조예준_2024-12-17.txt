@@ -1,0 +1,87 @@
+과제 수정사항
+
+StudentController.java 파일 수정
+
+student_edit_proc.do 데이터암호화/파일 업로드 방식 수정/doComplete로 예외처리
+
+	@RequestMapping(value = "{menuCode}_edit_cyj_student_proc.do")
+	public String updateStudent(@PathVariable String menuCode, ModelMap model, HttpServletRequest request, @RequestParam("uploadFile") MultipartFile uploadFile) throws DataAccessException {
+	    LOGGER.info("학생 정보수정 프로세스");
+	    ManpaMap paramMap = CommUtil.getParameterEMap(request, model);
+	    String studentId = request.getParameter("student_id");
+	    String studentName = request.getParameter("student_name");
+	    String phoneNumber = request.getParameter("phone_number");
+	    String residentRegistrationNumber = request.getParameter("resident_registration_number");
+	    String address = request.getParameter("address");
+	    String birthDate = request.getParameter("birth_date");
+	    String emergencyPhoneNumber = request.getParameter("emergency_phone_number");
+
+try {
+	    // 데이터 암호화
+	    String encPhoneNumber = CommUtil.seedEnc256(phoneNumber);
+	    String encResidentRegistrationNumber = CommUtil.seedEnc256(residentRegistrationNumber);
+
+	    paramMap.put("menuCode", menuCode);
+	    paramMap.put("studentId", studentId);
+	    paramMap.put("studentName", studentName);
+	    paramMap.put("phoneNumber", encPhoneNumber);
+	    paramMap.put("residentRegistrationNumber", encResidentRegistrationNumber);
+	    paramMap.put("address", address);
+	    paramMap.put("birthDate", birthDate);
+	    paramMap.put("emergencyPhoneNumber", emergencyPhoneNumber);
+	    LOGGER.info("학생번호 ::: " + paramMap);
+
+	    // 학생 정보 업데이트
+	    studentService.updateStudent(paramMap);
+
+	    // 파일 업로드 처리
+	    if (!uploadFile.isEmpty()) {
+	        Map<String, MultipartFile> fileMap = new HashMap<>();
+	        fileMap.put("uploadFile", uploadFile);
+
+	        // 파일 업로드 전 체크 (용량 및 이미지 여부)
+	        String errMsg = CommUtil.fileUploadBeforeCheck(fileMap, 1024000000, "uploadFile", "", true, "");
+	        if (!"".equals(errMsg)) {
+	            throw new RuntimeException(errMsg); // 에러 처리
+	        }
+
+	        // 파일 업로드 실행
+	        HashMap<String, Object> fileResult = CommUtil.fileUpload(fileMap, "uploadFile", "saaFiles");
+	        if (fileResult != null) {
+	            String storedName = fileResult.get("F_SAVENAME").toString();
+	            String originalName = fileResult.get("F_ORGNAME").toString();
+	            long fileSize = (Long) fileResult.get("F_FILESIZE");
+
+	            SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+	            String formattedDate = simpleDateFormat.format(new Date());
+
+	            paramMap.put("fileId", CommUtil.idMake("F"));
+	            paramMap.put("originalName", originalName);
+	            paramMap.put("storedName", storedName);
+	            paramMap.put("fileSize", fileSize);
+	            paramMap.put("uploadAt", formattedDate);
+
+	            // 기존 파일 정보 삭제
+	            studentService.deleteFile(paramMap);
+	            // 새로운 파일 정보 저장
+	            studentService.uploadFile(paramMap);
+	        }
+	    }
+} catch (Exception e) {
+		return CommUtil.doComplete(model, "오류", "처리 중 오류가 발생하였습니다.", "location.href='" + request.getContextPath() + "/_mngr_/module/" + menuCode + "_view_cyj_student.do?student_id=" + studentId + "';");
+}
+		return CommUtil.doComplete(model, "완료", "처리 되었습니다.", "location.href='" + request.getContextPath() + "/_mngr_/module/" + menuCode + "_view_cyj_student.do?student_id=" + studentId + "';");
+	}
+
+
+student_view.jsp 수정
+
+// 파일 다운로드 추가
+<a href="<c:url value="/comm/download.do?f=${ufn:getDownloadLink('','saaFiles',file.storedName,file.originalName)}" />" >다운로드</a>
+
+// 암호화된 데이터 출력하기
+<td class="tac">${ufn:seedDec256(student.phoneNumber)}</td>
+<td class="tac">${ufn:seedDec256(student.residentRegistrationNumber)}</td>
+
+
+

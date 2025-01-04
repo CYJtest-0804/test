@@ -1,0 +1,302 @@
+-- 피드백 반영하였습니다. 
+- xml파일 인서트 아이디 수정
+-------------------------------------------------------
+	<insert id = "insertStudent">
+		INSERT INTO saa_student_register
+			(student_id,
+			 student_name,
+			 state,
+			 entrance,
+			 student_sex,
+			 student_department,
+			 student_grade,
+			 student_class,
+			 student_number
+			 )
+		VALUES
+			(#{studentId},
+			 #{studentName},
+			 #{state},
+			 #{entrance},
+			 #{studentSex},
+			 #{studentDepartment},
+			 #{studentGrade},
+			 #{studentClass},
+			 #{studentNumber}
+			);
+	</insert>
+-------------------------------------------------------
+
+- 매퍼 값, 인서트 아이디 수정
+-------------------------------------------------------
+@Mapper("studentMapper")
+public interface StudentMapper {
+
+	List<EgovMap> selectStudentList(EgovMap paramMap) throws SQLException;
+	void insertStudent(EgovMap paramMap) throws SQLException;
+
+}
+-------------------------------------------------------
+
+- 서비스 인서트 아이디 수정
+-------------------------------------------------------
+public interface StudentService {
+
+	List<EgovMap> selectStudentList(EgovMap paramMap) throws SQLException;
+	void insertStudent(EgovMap paramMap) throws SQLException;
+
+}
+-------------------------------------------------------
+
+- 서비스임플 인서트 아이디 수정
+-------------------------------------------------------
+@Service("studentService")
+public class StudentServiceImpl extends EgovAbstractServiceImpl implements StudentService {
+
+    @Resource(name = "studentMapper")
+    private StudentMapper studentMapper;
+
+    @Override
+    public List<EgovMap> selectStudentList(EgovMap paramMap) throws DataAccessException, SQLException {
+        return studentMapper.selectStudentList(paramMap);
+    }
+
+    // 학생 등록 메서드 구현
+    @Override
+    public void insertStudent(EgovMap egovMap) throws DataAccessException, SQLException {
+        studentMapper.insertStudent(egovMap);
+    }
+-------------------------------------------------------
+
+- 컨트롤러파일에서 누락한 서비스명령어 추가
+-------------------------------------------------------
+	@RequestMapping(value = "/student/student_input_proc.do")
+	public String insertStudent(ModelMap model, HttpServletRequest request) throws DataAccessException, RuntimeException, IOException, SQLException {
+	    LOGGER.info("학생 등록 처리");
+
+	    String studentId = request.getParameter("student_id");
+	    String studentName = request.getParameter("student_name");
+	    String state = request.getParameter("state");
+	    String entrance = request.getParameter("entrance");
+	    String studentSex = request.getParameter("student_sex");
+	    String studentDepartment = request.getParameter("student_department");
+	    String studentGrade = request.getParameter("student_grade");
+	    String studentClass = request.getParameter("student_class");
+	    String studentNumber = request.getParameter("student_number");
+
+	    EgovMap egovMap = new EgovMap();
+	    egovMap.put("studentId", studentId);
+	    egovMap.put("studentName", studentName);
+	    egovMap.put("state", state);
+	    egovMap.put("entrance", entrance);
+	    egovMap.put("studentSex", studentSex);
+	    egovMap.put("studentDepartment", studentDepartment);
+	    egovMap.put("studentGrade", studentGrade);
+	    egovMap.put("studentClass", studentClass);
+	    egovMap.put("studentNumber", studentNumber);
+	    LOGGER.info("egovMap ::: " + egovMap);
+
+	    studentService.insertStudent(egovMap);
+
+	    // 리다이렉트 경로 수정
+	    return "redirect:/student/student_list.do";
+	}
+-------------------------------------------------------
+
+기존 
+-------------------------------------------------------------------------------------------------------------------------
+
+우선 올바르게 데이터 값을 전달하기 위해 다음과 같이 student_input.jsp를 수정했습니다. 입력항목들을 완성하고, 그에 맞게 스크립트 코드들도 추가해줬습니다.
+	<script> // 유효성 검사부분
+	function fn_saveStudent() {
+		var frm = document.studentFrm;
+		if (!frm.student_id.value) { 
+			alert("학생번호를 입력하세요.");
+			frm.student_id.focus();
+			return;
+		}
+
+		if (!$("#student_name").val()) {
+			alert("학생이름을 입력하세요.");
+			$("#student_name").focus();
+			return;
+		}
+		if (!$("#state").val()) {
+			alert("재적상태를 입력하세요.");
+			$("#state").focus();
+			return;
+		}
+		if (!$("#entrance").val()) {
+			alert("입학/전형일자를 입력하세요.");
+			$("#entrance").focus();
+			return;
+		}
+		if (frm.student_sex[0].checked == false
+			&& frm.student_sex[1].checked == false) {
+			alert("학생성별를 선택하세요.");
+			return; // radio입력 방식은 jquery로 처리하는게 익숙치 않아 document방식으로 처리하였습니다.
+		}
+		if (!$("#student_department").val()) {
+			alert("학과를 입력하세요.");
+			$("#student_department").focus();
+			return;
+		}
+		if (!$("#student_grade").val()) {
+			alert("학년을 입력하세요.");
+			$("#student_grade").focus();
+			return;
+		}
+		if (!$("#student_class").val()) {
+			alert("반을 입력하세요.");
+			$("#student_class").focus();
+			return;
+		}
+		if (!$("#student_number").val()) {
+			alert("번호를 입력하세요.");
+			$("#student_number").focus();
+			return;
+		}
+
+		frm.submit();
+	}
+	</script>
+</head>
+<!-- 학생번호	학생이름 재적상태 입학/전학일자	성별	학과	학년	반 번호--> 
+<body>
+	<div>
+		<h3>학생 등록</h3> 
+		<form name="studentFrm" id="studentFrm" method="post" action="student_input_proc.do">
+		<table class="dataTable">
+			<tr>
+				<th>학생번호</th>
+				<td><input type="text" name="student_id" id="student_id" size="50"/></td> 
+			</tr>
+			<tr>
+				<th>학생이름</th>
+				<td><input type="text" name="student_name" id="student_name" size="10"/></td>
+			</tr>
+			<tr>
+				<th>재적상태</th>
+				<td><input type="text" name="state" id="state" size="5"/></td>
+			</tr>
+			<tr>
+				<th>입학/전학일자</th>
+				<td><input type="date" name="entrance" id="entrance" size="20"/></td>
+			</tr>
+			<tr>
+				<th>성별</th>
+				<td>
+					<input type="radio" name="student_sex" id="student_sex_m" value="M"/>남
+					<input type="radio" name="student_sex" id="student_sex_f" value="F"/>여
+				</td>
+			</tr>
+			<tr>
+				<th>학과</th>
+				<td><input type="text" name="student_department" id="student_department" size="20"/></td>
+			</tr>
+			<tr>
+				<th>학년</th>
+				<td><input type="text" name="student_grade" id="student_grade" size="5"/></td>
+			</tr>
+			<tr>
+				<th>반</th>
+				<td><input type="text" name="student_class" id="student_class" size="5"/></td>
+			</tr>
+			<tr>
+				<th>번호</th>
+				<td><input type="text" name="student_number" id="student_number" size="5"/></td>
+			</tr>
+		</table>
+		</form>
+	</div>
+
+	<div>
+		<button type="button" onclick="location.href='student_list.do';">목록</button>
+		<button type="button" onclick="fn_saveStudent();">등록</button>
+	</div>
+이것이 수정된 부분입니다.
+
+실제 db에 입력받은 데이터를 등록하기 위해 student.xml파일에 insert를 추가하였습니다. 
+
+	<insert id = "inputStudentProc">
+		INSERT INTO saa_student_register
+			(student_id,
+			 student_name,
+			 state,
+			 entrance,
+			 student_sex,
+			 student_department,
+			 student_grade,
+			 student_class,
+			 student_number
+			 )
+		VALUES
+			(#{studentId},
+			 #{studentName},
+			 #{state},
+			 #{entrance},
+			 #{studentSex},
+			 #{studentDepartment},
+			 #{studentGrade},
+			 #{studentClass},
+			 #{studentNumber}
+			);
+	</insert>
+이것이 추가한 코드입니다.
+
+student.xml에서 만든 인서트 SQL쿼리를 매핑되는 메서드를 선언하기 위해 StudentMapper.java파일의 StudentMapper 인터페이스에 코드를 추가했습니다.
+
+List<EgovMap> inputStudentProc(EgovMap paramMap) throws SQLException;
+
+이게 추가한 코드입니다.
+
+HTTP 요청을 매핑하여 처리하기 위해 StudentController.java파일에 코드를 추가하였습니다.
+
+@RequestMapping(value = "/student/student_input_proc.do")
+	public String inputStudentProc(ModelMap model, HttpServletRequest request) throws DataAccessException, RuntimeException, IOException, SQLException {
+	    LOGGER.info("학생 등록 처리");
+
+	    String studentId = request.getParameter("student_id");
+	    String studentName = request.getParameter("student_name");
+	    String state = request.getParameter("state");
+	    String entrance = request.getParameter("entrance");
+	    String studentSex = request.getParameter("student_sex");
+	    String studentDepartment = request.getParameter("student_department");
+	    String studentGrade = request.getParameter("student_grade");
+	    String studentClass = request.getParameter("student_class");
+	    String studentNumber = request.getParameter("student_number");
+
+	    EgovMap egovMap = new EgovMap();
+	    egovMap.put("studentId", studentId);
+	    egovMap.put("studentName", studentName);
+	    egovMap.put("state", state);
+	    egovMap.put("entrance", entrance);
+	    egovMap.put("studentSex", studentSex);
+	    egovMap.put("studentDepartment", studentDepartment);
+	    egovMap.put("studentGrade", studentGrade);
+	    egovMap.put("studentClass", studentClass);
+	    egovMap.put("studentNumber", studentNumber);
+	    LOGGER.info("egovMap ::: " + egovMap);
+
+	    // 리다이렉트 경로 수정
+	    return "redirect:/student/student_list.do";
+	}
+
+이게 추가한 코드입니다.
+
+실질적인 로직 처리를 위해서 StudentService.java파일에 
+
+List<EgovMap> inputStudentProc(EgovMap paramMap) throws SQLException;
+
+이게 추가한 코드입니다.
+
+Spring의존성 투입을 위해 StudentServiceimpl.java파일의 @Resource부분에 코드를 추가했습니다.
+
+public List<EgovMap> inputStudentProc(EgovMap paramMap) throws DataAccessException, SQLException {
+		return studentMapper.inputStudentProc(paramMap);
+	}
+
+이게 추가한 코드입니다.
+
+
+

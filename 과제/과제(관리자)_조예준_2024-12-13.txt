@@ -1,0 +1,923 @@
+관리자 페이지
+
+student.xml
+-------------------------------------------------------------------------------
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="egovframework.saa.module.student.service.impl.StudentMapper">
+
+	<sql id="pageBefore">
+		SELECT * FROM
+		(SELECT RN.*, ROWNUM AS RNUM, COUNT(*) OVER() AS TOTCNT FROM(
+	</sql>
+	<sql id="pageAfter">
+		) RN
+		) WHERE RNUM &gt; #{firstIndex} AND RNUM &lt;= #{lastIndex}
+	</sql>
+
+	<select id="selectStudentList" resultType="manpaMap">
+		<include refid="pageBefore" />
+		SELECT
+			*
+		FROM (
+			SELECT
+				student_id
+				,student_name
+				,state
+				,entrance
+				,graduation
+				,leave_year
+				,expelled_year
+				,student_sex
+				,student_department
+				,student_grade
+				,student_class
+				,student_number
+			FROM gmh_student_register a
+			WHERE 1=1
+
+			<if test="schFld != '' and schFld != null and schStr != '' and schStr != null">
+				<choose>
+					<when test="schFld == 'name'">
+					AND INSTR(student_name, #{schStr}) > 0
+					</when>
+					<when test="schFld == 'dept'">
+					AND student_department LIKE '%' || #{schStr} || '%'
+					</when>
+					<otherwise>
+					AND (
+						INSTR(student_name, #{schStr}) > 0
+						OR INSTR(student_department, #{schStr}) > 0
+					)
+					</otherwise>
+				</choose>
+			</if>
+			ORDER BY 1, a.student_grade DESC, a.student_class, a.student_name
+		) t
+		<include refid="pageAfter" />
+	</select>
+
+	<select id="selectStudentView" resultType="manpaMap">
+		SELECT
+			si.student_id
+			,sr.student_grade
+			,si.student_name
+			,si.phone_number
+			,si.resident_registration_number
+			,si.address
+			,si.birth_date
+			,si.emergency_phone_number
+		 FROM gmh_student_information si, gmh_student_register sr
+		 WHERE si.student_id = sr.student_id AND
+				si.student_id = #{studentId}
+	</select>
+
+	<update id="updateStudent">
+   		UPDATE gmh_student_information
+	    SET student_name = #{studentName},
+	        phone_number = #{phoneNumber},
+	        resident_registration_number = #{residentRegistrationNumber},
+	        address = #{address},
+	        birth_date = #{birthDate},
+	        emergency_phone_number = #{emergencyPhoneNumber}
+	    WHERE student_id = #{studentId};
+
+	    UPDATE gmh_student_register
+	    SET student_name = #{studentName}
+	    WHERE student_id = #{studentId};
+	</update>
+
+	<delete id="deleteFile">
+	DELETE FROM cyj_student_files
+	WHERE student_id = #{studentId}
+	</delete>
+
+	<insert id="uploadFile" parameterType="manpaMap">
+	INSERT INTO cyj_student_files
+		(file_id
+		,student_id
+		,original_name
+		,stored_name
+		,file_size
+		,upload_at)
+	VALUES
+		(#{fileId}
+		,#{studentId}
+		,#{originalName}
+		,#{storedName}
+		,#{fileSize}
+		,#{uploadAt});
+	</insert>
+
+	<select id = "selectStudentFile" resultType="manpaMap">
+		SELECT stored_name
+		FROM cyj_student_files
+		WHERE student_id = #{studentId}
+	</select>
+
+	<select id="selectStudentRank" resultType="manpaMap">
+		/*selectStudentRank*/
+		<include refid="pageBefore" />
+		SELECT
+			RANK() OVER(ORDER BY totalScore DESC) rank
+			,score_year
+			,semester
+			,score_divion
+			,student_id
+			,student_name
+			,totalScore
+			,avgScore
+		FROM (SELECT
+			ssc.score_year
+			,ssc.semester
+			,ssc.score_divion
+			,ssc.student_id
+			,sre.student_name
+			,SUM(ssc.scores) OVER(PARTITION BY ssc.semester, ssc.score_divion DESC, ssc.student_id) totalScore
+			,AVG(ssc.scores) OVER(PARTITION BY ssc.semester, ssc.score_divion DESC, ssc.student_id) avgScore
+			FROM gmh_student_scores_information ssc, gmh_student_register sre
+			WHERE ssc.student_id = sre.student_id
+				AND sre.student_grade = #{studentGrade}
+				AND score_year = #{scoreYear}
+				AND ssc.semester = #{semester}
+				AND ssc.score_divion = #{scoreDivion})
+		GROUP BY student_id
+		<include refid="pageAfter" />
+	</select>
+
+</mapper>
+-------------------------------------------------------------------------------
+
+
+StudentMapper.java
+-------------------------------------------------------------------------------
+package egovframework.saa.module.student.service.impl;
+
+import java.util.List;
+
+import org.egovframe.rte.psl.dataaccess.mapper.Mapper;
+import org.springframework.dao.DataAccessException;
+
+import egovframework.manpa.common.ManpaMap;
+
+@Mapper("studentMapper")
+public interface StudentMapper {
+	List<ManpaMap> selectStudentList(ManpaMap paramMap) throws DataAccessException;
+	ManpaMap selectStudentView(ManpaMap paramMap) throws DataAccessException;
+	void updateStudent(ManpaMap paramMap) throws DataAccessException;
+	void uploadFile(ManpaMap paramMap) throws DataAccessException;
+	void deleteFile(ManpaMap paramMap) throws DataAccessException;
+	ManpaMap selectStudentFile(ManpaMap paramMap) throws DataAccessException;
+	List<ManpaMap> selectStudentRank(ManpaMap paramMap) throws DataAccessException;
+}
+
+-------------------------------------------------------------------------------
+
+
+StudentService.java
+-------------------------------------------------------------------------------
+package egovframework.saa.module.student.service;
+
+import java.util.List;
+
+import org.springframework.dao.DataAccessException;
+
+import egovframework.manpa.common.ManpaMap;
+
+public interface StudentService {
+	List<ManpaMap> selectStudentList(ManpaMap paramMap) throws DataAccessException;
+	ManpaMap selectStudentView(ManpaMap paramMap) throws DataAccessException;
+	void updateStudent(ManpaMap paramMap) throws DataAccessException;
+	void uploadFile(ManpaMap paramMap) throws DataAccessException;
+	void deleteFile(ManpaMap paramMap) throws DataAccessException;
+	ManpaMap selectStudentFile(ManpaMap paramMap) throws DataAccessException;
+	List<ManpaMap> selectStudentRank(ManpaMap paramMap) throws DataAccessException;
+}
+
+-------------------------------------------------------------------------------
+
+
+StudentServiceImpl.java
+-------------------------------------------------------------------------------
+package egovframework.saa.module.student.service.impl;
+
+import java.util.List;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.egovframe.rte.fdl.cmmn.EgovAbstractServiceImpl;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataAccessException;
+import org.springframework.stereotype.Service;
+
+import egovframework.manpa.common.ManpaMap;
+import egovframework.saa.module.student.service.StudentService;
+
+@Service("studentService")
+public class StudentServiceImpl extends EgovAbstractServiceImpl implements StudentService {
+
+	private final Logger LOGGER = LogManager.getLogger(StudentServiceImpl.class);
+
+	@Autowired
+    private StudentMapper studentMapper;
+
+    @Override
+    public List<ManpaMap> selectStudentList(ManpaMap paramMap) throws DataAccessException {
+    	LOGGER.info("ManpaMap ::: selectStudentList");
+        return studentMapper.selectStudentList(paramMap);
+    }
+
+    @Override
+    public ManpaMap selectStudentView(ManpaMap paramMap) throws DataAccessException {
+    	LOGGER.info("ManpaMap ::: selectStudentView");
+        return studentMapper.selectStudentView(paramMap);
+    }
+
+    @Override
+    public void updateStudent(ManpaMap paramMap) throws DataAccessException {
+    	LOGGER.info("ManpaMap ::: updateStudent");
+        studentMapper.updateStudent(paramMap);
+    }
+
+    @Override
+    public void uploadFile(ManpaMap paramMap) throws DataAccessException {
+    	LOGGER.info("ManpaMap ::: uploadFile");
+        studentMapper.uploadFile(paramMap);
+    }
+
+    @Override
+    public void deleteFile(ManpaMap paramMap) throws DataAccessException {
+    	LOGGER.info("ManpaMap ::: deleteFile");
+        studentMapper.deleteFile(paramMap);
+    }
+
+    @Override
+    public ManpaMap selectStudentFile(ManpaMap paramMap) throws DataAccessException {
+    	LOGGER.info("ManpaMap ::: selectStudentFile");
+        return studentMapper.selectStudentFile(paramMap);
+    }
+
+    @Override
+    public List<ManpaMap> selectStudentRank(ManpaMap paramMap) throws DataAccessException {
+    	LOGGER.info("ManpaMap ::: selectStudentRank");
+        return studentMapper.selectStudentRank(paramMap);
+    }
+
+}
+
+-------------------------------------------------------------------------------
+
+
+StudentController.java
+-------------------------------------------------------------------------------
+package egovframework.saa.mngr.student.web;
+
+import java.io.File;
+import java.util.Date;
+import java.util.List;
+
+import javax.annotation.Resource;
+import javax.servlet.http.HttpServletRequest;
+
+import org.apache.log4j.LogManager;
+import org.apache.log4j.Logger;
+import org.egovframe.rte.ptl.mvc.tags.ui.pagination.PaginationInfo;
+import org.springframework.dao.DataAccessException;
+import org.springframework.stereotype.Controller;
+import org.springframework.ui.ModelMap;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.multipart.MultipartFile;
+
+import com.ibm.icu.text.SimpleDateFormat;
+
+import egovframework.manpa.common.ManpaMap;
+import egovframework.manpa.util.CommUtil;
+import egovframework.manpa.util.CustomUtil;
+import egovframework.saa.module.student.service.StudentService;
+
+@Controller
+@RequestMapping("/_mngr_/module/")
+public class StudentController {
+
+	@Resource(name = "studentService")
+	private StudentService studentService;
+
+	private static final Logger LOGGER = LogManager.getLogger(StudentController.class);
+
+	@RequestMapping(value = "{menuCode}_list_cyj_student.do")
+	public String selectStudentList(@PathVariable String menuCode, ModelMap model, HttpServletRequest request) throws DataAccessException  {
+		LOGGER.info("학생 목록");
+		ManpaMap paramMap = CommUtil.getParameterEMap(request,model);
+try {
+		paramMap.put("menuCode", menuCode);
+		paramMap.put("viewCount", CommUtil.isNull(paramMap.get("viewCount"), "10"));// 한페이지
+		paramMap.put("schFld", CommUtil.isNull(paramMap.get("schFld"), "0")); // 검색 조건
+		paramMap.put("schOpt", CommUtil.isNull(paramMap.get("schOpt"), "0")); // 검색 조건
+
+		PaginationInfo paginationInfo = CustomUtil.initPaginationInfo(paramMap); //페이징처리
+		List<ManpaMap> studentList = studentService.selectStudentList(paramMap);
+
+   		CustomUtil.putPaginationInfo(paginationInfo, studentList, model); //페이징처리
+		model.addAttribute("paginationInfo", paginationInfo);
+		model.addAttribute("paramMap", paramMap);
+		model.addAttribute("studentList", studentList);
+		LOGGER.info("studentList ::: " + studentList);
+}catch (Exception e) {
+		e.printStackTrace();
+}
+		return "saa/mngr/student/student_list";
+	}
+
+	private static final String UPLOAD_DIR = "C:/Users/landsoft/git/MDUAS_ADM_TEST/MDUAS_ADM_TEST/src/main/webapp/images/";
+
+	@RequestMapping(value = "{menuCode}_view_cyj_student.do")
+	public String selectStudentView(@PathVariable String menuCode, ModelMap model, HttpServletRequest request) throws DataAccessException {
+	    LOGGER.info("학생 상세정보");
+	    ManpaMap paramMap = CommUtil.getParameterEMap(request, model);
+	    try {
+	        String studentId = request.getParameter("student_id");
+	        paramMap.put("menuCode", menuCode);
+	        paramMap.put("studentId", studentId);
+	        LOGGER.info("학생번호 ::: " + studentId);
+
+	        ManpaMap student = studentService.selectStudentView(paramMap);
+	        ManpaMap file = studentService.selectStudentFile(paramMap);
+
+	        // 파일 정보가 있을 경우 웹 경로 생성
+	        String imagePath = "";
+	        if (file != null && file.get("storedName") != null) {
+	        	imagePath = "/images/" + file.get("storedName").toString();
+	        }
+
+	        model.addAttribute("paramMap", paramMap);
+	        model.addAttribute("student", student);
+	        model.addAttribute("file", file);
+	        model.addAttribute("imagePath", imagePath); // JSP에서 사용할 이미지 경로
+	        LOGGER.info("student ::: " + student);
+	        LOGGER.info("file ::: " + file);
+	    } catch (Exception e) {
+	        e.printStackTrace();
+	    }
+	    return "saa/mngr/student/student_view";
+	}
+
+	@RequestMapping(value = "{menuCode}_edit_cyj_student.do")
+	public String editStudent(@PathVariable String menuCode, ModelMap model, HttpServletRequest request) throws DataAccessException  {
+		LOGGER.info("학생 정보수정");
+		ManpaMap paramMap = CommUtil.getParameterEMap(request,model);
+try {
+	    String studentId = request.getParameter("student_id");
+
+	    paramMap.put("menuCode", menuCode);
+	    paramMap.put("studentId", studentId);
+	    LOGGER.info("학생번호 ::: " + studentId);
+
+	    model.addAttribute("paramMap", paramMap);
+	    ManpaMap student = studentService.selectStudentView(paramMap);
+
+	    model.addAttribute("student", student);
+	    LOGGER.info("student ::: " + student);
+}catch (Exception e) {
+		e.printStackTrace();
+}
+	    return "saa/mngr/student/student_edit";
+	}
+
+	@RequestMapping(value = "{menuCode}_edit_cyj_student_proc.do")
+	public String updateStudent(@PathVariable String menuCode, ModelMap model, HttpServletRequest request, @RequestParam("uploadFile") MultipartFile uploadFile) throws DataAccessException {
+	    LOGGER.info("학생 정보수정 처리");
+	    ManpaMap paramMap = CommUtil.getParameterEMap(request, model);
+	    String studentId = request.getParameter("student_id");
+	    String studentName = request.getParameter("student_name");
+	    String phoneNumber = request.getParameter("phone_number");
+	    String residentRegistrationNumber = request.getParameter("resident_registration_number");
+	    String address = request.getParameter("address");
+	    String birthDate = request.getParameter("birth_date");
+	    String emergencyPhoneNumber = request.getParameter("emergency_phone_number");
+try {
+	    paramMap.put("menuCode", menuCode);
+	    paramMap.put("studentId", studentId);
+	    paramMap.put("studentName", studentName);
+	    paramMap.put("phoneNumber", phoneNumber);
+	    paramMap.put("residentRegistrationNumber", residentRegistrationNumber);
+	    paramMap.put("address", address);
+	    paramMap.put("birthDate", birthDate);
+	    paramMap.put("emergencyPhoneNumber", emergencyPhoneNumber);
+	    LOGGER.info("학생번호 ::: " + paramMap);
+
+	 // 학생 정보 업데이트
+	    studentService.updateStudent(paramMap);
+
+	 // 파일 업로드 처리
+	    if (!uploadFile.isEmpty()) {
+	        // 파일 ID 생성
+	        String fileId = CommUtil.idMake("");
+
+	        // 원본 파일명에서 확장자 추출
+	        String originalName = uploadFile.getOriginalFilename();
+	        String fileExtension = "";
+	        int index = originalName.lastIndexOf('.');
+	        if (index > 0) {
+	            fileExtension = originalName.substring(index);
+	        }
+
+	        // 파일 ID를 저장 파일명으로 사용
+	        String filePath = UPLOAD_DIR + File.separator + fileId + fileExtension;
+
+	        File dest = new File(filePath);
+	        uploadFile.transferTo(dest);
+
+	        SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+	        String formattedDate = simpleDateFormat.format(new Date()); // 현재 시간 포맷팅
+
+	        paramMap.put("fileId", fileId);
+	        paramMap.put("originalName", originalName);
+	        paramMap.put("storedName", fileId + fileExtension); // 저장 파일명에 파일 ID와 확장자 포함
+	        paramMap.put("fileSize", uploadFile.getSize());
+	        paramMap.put("uploadAt", formattedDate);
+
+	        // 기존 파일 정보 삭제
+	        studentService.deleteFile(paramMap);
+	        // 파일 정보 저장
+	        studentService.uploadFile(paramMap);
+	    }
+
+} catch (Exception e) {
+		e.printStackTrace();
+}
+	    return "redirect:{menuCode}_view_cyj_student.do?student_id=" + studentId;
+	}
+
+
+	@RequestMapping(value = "{menuCode}_list_cyj_studentRank.do")
+	public String selectStudentRank(@PathVariable String menuCode, ModelMap model, HttpServletRequest request) throws DataAccessException  {
+		LOGGER.info("학생 성적순위");
+		ManpaMap paramMap = CommUtil.getParameterEMap(request,model);
+try {
+		paramMap.put("menuCode", menuCode);
+		paramMap.put("viewCount", CommUtil.isNull(paramMap.get("viewCount"), "10"));// 한페이지
+		paramMap.put("schFld", CommUtil.isNull(paramMap.get("schFld"), "0")); // 검색 조건
+		paramMap.put("schOpt", CommUtil.isNull(paramMap.get("schOpt"), "0")); // 검색 조건
+		paramMap.put("scoreYear", CommUtil.isNull(paramMap.get("scoreYear"), "2022"));
+		paramMap.put("studentGrade", CommUtil.isNull(paramMap.get("studentGrade"), "3"));
+		paramMap.put("semester", CommUtil.isNull(paramMap.get("semester"), "1"));
+		paramMap.put("scoreDivion", CommUtil.isNull(paramMap.get("scoreDivion"), "M"));
+
+		PaginationInfo paginationInfo = CustomUtil.initPaginationInfo(paramMap); //페이징처리
+		List<ManpaMap> studentRank = studentService.selectStudentRank(paramMap);
+
+   		CustomUtil.putPaginationInfo(paginationInfo, studentRank, model); //페이징처리
+		model.addAttribute("paginationInfo", paginationInfo);
+		model.addAttribute("paramMap", paramMap);
+		model.addAttribute("studentRank", studentRank);
+		LOGGER.info("studentRank ::: " + studentRank);
+}catch (Exception e) {
+		e.printStackTrace();
+}
+		return "saa/mngr/student/studentRank_list";
+	}
+
+}
+
+-------------------------------------------------------------------------------
+
+
+student_list.jsp
+-------------------------------------------------------------------------------
+<%@ page contentType="text/html; charset=UTF-8" pageEncoding="UTF-8"%>
+<%@ taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core" %>
+<%@ taglib prefix="form" uri="http://www.springframework.org/tags/form" %>
+<%@ taglib prefix="fmt"    uri="http://java.sun.com/jsp/jstl/fmt" %>
+<%@ taglib prefix="ui" uri="http://egovframework.gov/ctl/ui"%>
+<%@ taglib prefix="spring" uri="http://www.springframework.org/tags"%>
+<%@ taglib prefix="fn" uri="http://java.sun.com/jsp/jstl/functions" %>
+<%@ taglib prefix="ufn"    uri="/WEB-INF/tlds/egovfn.tld"%>
+<%@ taglib prefix="orderby" uri="/WEB-INF/tlds/orderby.tld" %>
+<%@ taglib prefix="cct" uri="/WEB-INF/tlds/CreateCodeTag.tld" %>
+<c:set var="ctx" value="${pageContext.request.contextPath}"/>
+<div style="margin-top:30px">
+	<form name="listForm" id="listForm" method="post" onsubmit="return false;">
+		<input type="hidden" name="_csrf" value="">
+		<input type="hidden" name="page" value="${paramMap.page}">
+		<div class="list_wrap">
+			<div class="box_title_wrap">
+				<div class="title_right">
+					<label for="viewCount" class="sr-only">리스트 갯수</label>
+					<select name="viewCount" id="viewCount" onchange="fn_search()">
+						<option value="10" ${ufn:selected(paramMap.viewCount, '10')}>10</option>
+						<option value="20" ${ufn:selected(paramMap.viewCount, '20')}>20</option>
+						<option value="50" ${ufn:selected(paramMap.viewCount, '50')}>50</option>
+						<option value="100" ${ufn:selected(paramMap.viewCount, '100')}>100</option>
+					</select>
+					<label for="schFld" class="sr-only">검색조건</label>
+					<select name="schFld" id="schFld">
+						<option value="name" ${ufn:selected(paramMap.schFld, '0')}>이름</option>
+						<option value="dept" ${ufn:selected(paramMap.schFld, '1')}>학과</option>
+						<option value="all" ${ufn:selected(paramMap.schFld, '2')}>전체</option>
+					</select>
+					<label for="schStr" class="sr-only">검색어</label>
+					<input name="schStr" id="schStr" value="${paramMap.schStr}" title="검색어 입력">
+					<button class="btn btn_md btn_navy" onclick="fn_search()">검색</button>
+				</div>
+			</div>
+
+			<p class="total_result">
+				게시물 <b><fmt:formatNumber value="${paginationInfo.totalRecordCount}" type="number" /></b>건
+				, 페이지 : <fmt:formatNumber value="${paginationInfo.currentPageNo}" type="number" /> / <fmt:formatNumber value="${paginationInfo.totalPageCount}" type="number" />
+			</p>
+
+			<table class="list_table">
+                <colgroup>
+                    <col style="width:80px;">
+                    <col style="width:100px;">
+                    <col style="width:120px;">
+                    <col style="width:120px;">
+                    <col style="width:80px;">
+                    <col style="width:120px;">
+                    <col style="width:80px;">
+                    <col style="width:80px;">
+                </colgroup>
+                <thead>
+                    <tr>
+                        <th scope="col">학생번호</th>
+                        <th scope="col">학생성명</th>
+                        <th scope="col">재적상태</th>
+                        <th scope="col">입학/전학일자</th>
+                        <th scope="col">성별</th>
+                        <th scope="col">학과</th>
+                        <th scope="col">학년</th>
+                        <th scope="col">반</th>
+                    </tr>
+                </thead>
+				<tbody>
+                    <c:if test="${fn:length(studentList) > 0}">
+                        <c:forEach var="list" items="${studentList}" varStatus="status">
+                            <tr>
+                                <td class="tac">
+                               		<a href="#"
+                               		onclick="fn_goMenu('CYJ-SAA-studentView','2','/_mngr_/module/CYJ-SAA-studentView_view_cyj_student.do?student_id=${list.studentId}');" title="학생 상세정보"">
+                            			<c:out value="${list.studentId}" />
+                        			</a>
+                        		</td>
+                                <td class="tac"><c:out value="${list.studentName}" /></td>
+                                <td class="tac"><c:out value="${list.state}" /></td>
+                                <td class="tac"><c:out value="${list.entrance}" /></td>
+                                <td class="tac"><c:out value="${list.studentSex}" /></td>
+                                <td class="tac"><c:out value="${list.studentDepartment}" /></td>
+                                <td class="tac"><c:out value="${list.studentGrade}" /></td>
+                                <td class="tac"><c:out value="${list.studentClass}" /></td>
+                            </tr>
+                        </c:forEach>
+                    </c:if>
+                    <c:if test="${fn:length(studentList) eq 0}">
+                        <tr>
+                            <td colspan="8" class="tac">데이터가 없습니다.</td>
+                        </tr>
+                    </c:if>
+                    </tbody>
+			</table>
+		</div> <!--  .list_wrap -->
+		<div class="btm_btn_wrap">
+		<div class="left"></div>
+		<ul class="pagination">
+			<ui:pagination paginationInfo = "${paginationInfo}" type="image" jsFunction="fn_egov_link_page" />
+		</ul>
+		</div>
+	</form>
+</div>
+
+<script>
+
+var queryString = "viewCount=${paramMap.viewCount}&schFld=${paramMap.schFld}&schStr=${paramMap.schStr}&page=${paramMap.page}";
+
+function fn_search(){
+	var tmpQuery = queryString;
+	var f = document.listForm;
+	tmpQuery = ManpaJs.fn_replaceQueryString(tmpQuery, "viewCount", f.viewCount.value);
+	tmpQuery = ManpaJs.fn_replaceQueryString(tmpQuery, "schFld", f.schFld.value);
+	tmpQuery = ManpaJs.fn_replaceQueryString(tmpQuery, "schStr", f.schStr.value);
+	tmpQuery = ManpaJs.fn_replaceQueryString(tmpQuery, "page", "1");
+
+	location.href="?" + tmpQuery;
+}
+
+/* pagination 페이지 링크 function */
+function fn_egov_link_page(pageNo){
+	location.href="?" + ManpaJs.fn_replaceQueryString(queryString, "page", pageNo);
+}
+
+function fn_goMenu(menuCode,menuType,menuMngurl){
+// 	'0,폴더,1,CMS 컨텐츠,2,프로그램,3,게시판,4,링크,5,없음,6,리비전관리,7,인클루드링크'
+	if(menuType == "4"){
+		window.open("<c:out value="${ctx}"/>"+menuMngurl);
+	} else if(menuType != "0"){
+		location.href="<c:out value="${ctx}"/>"+menuMngurl;
+	}
+}
+
+</script>
+-------------------------------------------------------------------------------
+
+
+student_view.jsp
+-------------------------------------------------------------------------------
+<%@ page contentType="text/html; charset=UTF-8" pageEncoding="UTF-8"%>
+<%@ taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core" %>
+<%@ taglib prefix="form" uri="http://www.springframework.org/tags/form" %>
+<%@ taglib prefix="fmt"    uri="http://java.sun.com/jsp/jstl/fmt" %>
+<%@ taglib prefix="ui" uri="http://egovframework.gov/ctl/ui"%>
+<%@ taglib prefix="spring" uri="http://www.springframework.org/tags"%>
+<%@ taglib prefix="fn" uri="http://java.sun.com/jsp/jstl/functions" %>
+<%@ taglib prefix="ufn"    uri="/WEB-INF/tlds/egovfn.tld"%>
+<%@ taglib prefix="orderby" uri="/WEB-INF/tlds/orderby.tld" %>
+<%@ taglib prefix="cct" uri="/WEB-INF/tlds/CreateCodeTag.tld" %>
+<c:set var="ctx" value="${pageContext.request.contextPath}"/>
+<div style="margin-top:30px">
+	<form name="listForm" id="listForm" method="post" onsubmit="return false;">
+		<input type="hidden" name="_csrf" value="">
+		<input type="hidden" name="page" value="${paramMap.page}">
+	<div class="list_wrap">
+		<div class="box_title_wrap">
+			<div class="left">
+			<button class="btn btn-default"
+				onclick="fn_goMenu('CYJ-SAA-studentList','2','/_mngr_/module/CYJ-SAA-studentList_list_cyj_student.do');" title="학생 목록">목록</button>
+			</div>
+			<div class="right">
+			<button class="btn btn-primary"
+				onclick="fn_goMenu('CYJ-SAA-studentView','2','/_mngr_/module/CYJ-SAA-studentView_edit_cyj_student.do?student_id=${student.studentId}');" title="학생 정보수정">수정</button>
+			<button class="btn btn-danger"
+				onclick="fn_goMenu('CYJ-SAA-studentView','2','/_mngr_/module/CYJ-SAA-studentView_delete_cyj_student_proc.do?student_id=${student.studentId}');" title="학생 정보수정">삭제</button>
+			</div>
+		</div>
+			    <table class="list_table">
+                    <colgroup>
+                        <col style="width:100px;">
+                        <col style="width:80px;">
+                        <col style="width:100px;">
+                        <col style="width:120px;">
+                        <col style="width:120px;">
+                        <col style="width:80px;">
+                        <col style="width:120px;">
+                        <col style="width:80px;">
+                        <col style="width:80px;">
+                    </colgroup>
+                    <thead>
+                        <tr>
+                        	<th scope="col">학생사진</th>
+                            <th scope="col">학생번호</th>
+							<th scope="col">학년</th>
+							<th scope="col">학생성명</th>
+							<th scope="col">휴대전화</th>
+							<th scope="col">주민등록번호</th>
+							<th scope="col">주소</th>
+							<th scope="col">생년월일</th>
+							<th scope="col">긴급전화</th>
+                        </tr>
+                    </thead>
+				<tbody>
+                    <c:if test="${fn:length(student) > 0}">
+                            <tr>
+								<td class="tac">
+								    <c:choose>
+								        <c:when test="${empty file.storedName}">
+								            이미지가 없습니다.
+								        </c:when>
+								        <c:otherwise>
+								            <img src="${pageContext.request.contextPath}${imagePath}" alt="학생사진" style="width:100px; height:100px;">
+								        </c:otherwise>
+								    </c:choose>
+								</td>
+                                <td class="tac">${student.studentId}</td>
+						        <td class="tac">${student.studentGrade}</td>
+						        <td class="tac">${student.studentName}</td>
+						        <td class="tac">${student.phoneNumber}</td>
+						        <td class="tac">${student.residentRegistrationNumber}</td>
+						        <td class="tac">${student.address}</td>
+						        <td class="tac">${student.birthDate}</td>
+						        <td class="tac">${student.emergencyPhoneNumber}</td>
+                            </tr>
+                    </c:if>
+                    <c:if test="${fn:length(student) eq 0}">
+                        <tr>
+                            <td colspan="8" class="tac">데이터가 없습니다.</td>
+                        </tr>
+                    </c:if>
+                </tbody>
+			</table>
+		</div> <!--  .list_wrap -->
+	</form>
+</div>
+<script>
+
+var queryString = "viewCount=${paramMap.viewCount}&schFld=${paramMap.schFld}&schStr=${paramMap.schStr}&page=${paramMap.page}";
+
+function fn_goMenu(menuCode,menuType,menuMngurl){
+// 	'0,폴더,1,CMS 컨텐츠,2,프로그램,3,게시판,4,링크,5,없음,6,리비전관리,7,인클루드링크'
+	if(menuType == "4"){
+		window.open("<c:out value="${ctx}"/>"+menuMngurl);
+	} else if(menuType != "0"){
+		location.href="<c:out value="${ctx}"/>"+menuMngurl;
+	}
+}
+
+</script>
+-------------------------------------------------------------------------------
+
+
+student_edit
+-------------------------------------------------------------------------------
+<%@ page contentType="text/html; charset=UTF-8" pageEncoding="UTF-8"%>
+<%@ taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core" %>
+<%@ taglib prefix="form" uri="http://www.springframework.org/tags/form" %>
+<%@ taglib prefix="fmt"    uri="http://java.sun.com/jsp/jstl/fmt" %>
+<%@ taglib prefix="ui" uri="http://egovframework.gov/ctl/ui"%>
+<%@ taglib prefix="spring" uri="http://www.springframework.org/tags"%>
+<%@ taglib prefix="fn" uri="http://java.sun.com/jsp/jstl/functions" %>
+<%@ taglib prefix="ufn"    uri="/WEB-INF/tlds/egovfn.tld"%>
+<%@ taglib prefix="orderby" uri="/WEB-INF/tlds/orderby.tld" %>
+<%@ taglib prefix="cct" uri="/WEB-INF/tlds/CreateCodeTag.tld" %>
+<script src="https://code.jquery.com/jquery-latest.min.js"></script>
+<c:set var="ctx" value="${pageContext.request.contextPath}"/>
+
+	<div class="list_wrap">
+		<div class="box_title_wrap">
+			<div class="left">
+			<button class="btn btn-default"
+				onclick="fn_goMenu('CYJ-SAA-studentList','2','/_mngr_/module/CYJ-SAA-studentList_list_cyj_student.do');" title="학생 목록">목록</button>
+			</div>
+			<div class="right">
+			<button class="btn btn-primary"
+				onclick="fn_updateStudent();" title="학생 정보수정">수정</button>
+			<button class="btn btn-danger"
+				onclick="fn_goMenu('CYJ-SAA-studentView','2','/_mngr_/module/CYJ-SAA-studentView_delete_cyj_student_proc.do?student_id=${student.studentId}');" title="학생 정보수정">삭제</button>
+			</div>
+		</div>
+	<form name="studentFrm" id="studentFrm" method="post" enctype="multipart/form-data" action="{menuCode}_edit_cyj_student_proc.do">
+		<input type="hidden" name="student_id" value="${student.studentId}"/>
+		<div class="edit_table">
+		<table>
+			<tr>
+				<td>학생번호</td>
+				<td>${student.studentId}</td>
+			</tr>
+			<tr>
+				<td>학생이름</td>
+				<td><input type="text" name="student_name" id="student_name" value="${student.studentName}" /></td>
+			</tr>
+			<tr>
+				<td>학생사진</td>
+				<td>
+					<input type="file" name="uploadFile" accept="image/*" id="uploadFile" onchange="chkFile(this);" />
+					<div>
+						<img id="previewImg" src="" width="200" />
+					</div>
+				</td>
+			</tr>
+			<tr>
+				<td>휴대전화</td>
+				<td><input type="text" name="phone_number" id="phone_number"  value="${student.phoneNumber}" /></td>
+			</tr>
+			<tr>
+				<td>주민등록번호</td>
+				<td><input type="text" name="resident_registration_number" id="resident_registration_number"  value="${student.residentRegistrationNumber}" /></td>
+			</tr>
+			<tr>
+				<td>주소</td>
+				<td><input type="text" name="address" id="address"  value="${student.address}" /></td>
+			</tr>
+			<tr>
+				<td>생년월일</td>
+				<td><input type="date" name="birth_date" id="birth_date"  value = "${student.birthDate}"></td>
+			</tr>
+			<tr>
+				<td>긴급전화</td>
+				<td><input type="text" name="emergency_phone_number" id="emergency_phone_number"  value="${student.emergencyPhoneNumber}" /></td>
+			</tr>
+		</table>
+		</div>
+	</form>
+	</div>
+
+<script>
+
+	function fn_goMenu(menuCode,menuType,menuMngurl){
+//	 	'0,폴더,1,CMS 컨텐츠,2,프로그램,3,게시판,4,링크,5,없음,6,리비전관리,7,인클루드링크'
+		if(menuType == "4"){
+			window.open("<c:out value="${ctx}"/>"+menuMngurl);
+		} else if(menuType != "0"){
+			location.href="<c:out value="${ctx}"/>"+menuMngurl;
+		}
+	}
+
+	const sizeUnit = ["Byte", "KB", "MB", "GB", "TB"];
+
+	// 파일 정보 읽기
+	function fn_fileInfo($obj) {
+	    let file = $obj[0].files[0];
+	    let fileSize = file.size;
+	    let digit = 0;
+
+	    while (fileSize > 1024) {
+	        fileSize /= 1024;
+	        digit++;
+	    }
+
+	    var returnObj = new Object();
+	    returnObj.type = file.type;
+	    returnObj.digit = digit;
+	    returnObj.size = fileSize.toFixed(2);
+	    returnObj.orginSize = file.size;
+	    returnObj.txt = fileSize.toFixed(2) + sizeUnit[digit];
+
+	    return returnObj;
+	}
+
+	// 이미지 미리보기
+	function fn_imgPreview($obj, $target) {
+	    if ($obj != null && $obj[0].files.length > 0) {
+	        // 파일 리더 선언
+	        var reader = new FileReader();
+	        // 파일 정보 읽기
+	        reader.readAsDataURL($obj[0].files[0]);
+	        // 파일 정보가 로드되면
+	        reader.onload = function(e) {
+	            let base64data = reader.result;
+	            $target.attr('src', base64data);
+	        };
+	    } else {
+	        $target.attr('src', "");
+	    }
+	}
+
+	// 체크 함수
+	function chkFile($obj) {
+	    // 파일 제한 10MB
+	    const limitSize = 1024 ** 2 * 10;
+
+	    let fileInfo = fn_fileInfo($obj);
+	    console.log(fileInfo);
+	    // 파일 사이즈 체크
+	    if (limitSize < fileInfo.orginSize) {
+	        $obj.val('');
+	        fn_imgPreview(null, $('#previewImg'));
+	        alert("파일용량은 10MB 이내로 올려주세요. 현재 용량 : " + fileInfo.txt);
+	        return;
+	    }
+
+	    // 이미지 일 때 미리보기
+	    if (fileInfo.type.startsWith("image", 0)) {
+	        fn_imgPreview($obj, $('#previewImg'));
+	    } else {
+	        // 이미지가 아니면 초기화
+	        fn_imgPreview(null, $('#previewImg'));
+	    }
+	}
+
+	// 파일 입력 변경 시 이벤트 처리
+	$('#uploadFile').on('change', function() {
+	    chkFile($(this));
+	});
+
+	function fn_updateStudent() {
+		var frm = document.studentFrm;
+		if (!$("#student_name").val()) {
+			alert("학생이름을 입력하세요.");
+			$("#student_name").focus();
+			return;
+		}
+		if (!$("#phone_number").val()) {
+			alert("전화번호를 입력하세요.");
+			$("#phone_number").focus();
+			return;
+		}
+		if (!$("#resident_registration_number").val()) {
+			alert("주민번호를 입력하세요.");
+			$("#resident_registration_number").focus();
+			return;
+		}
+		if (!$("#address").val()) {
+			alert("주소를 입력하세요.");
+			$("#address").focus();
+			return;
+		}
+		if (!$("#birth_date").val()) {
+			alert("생년월일을 입력하세요.");
+			$("#birth_date").focus();
+			return;
+		}
+		if (!$("#emergency_phone_number").val()) {
+			alert("긴급전화를 입력하세요.");
+			$("#emergency_phone_number").focus();
+			return;
+		}
+		alert("수정이 완료되었습니다.");
+		frm.submit();
+	}
+</script>
+-------------------------------------------------------------------------------
+
+
+
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
